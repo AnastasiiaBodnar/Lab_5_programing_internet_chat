@@ -29,6 +29,8 @@ services:
       MYSQL_USER: chat
       MYSQL_PASSWORD: chat
       MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
     volumes:
       - dbdata:/var/lib/mysql
 

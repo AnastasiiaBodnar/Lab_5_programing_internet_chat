@@ -9,11 +9,13 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libicu-dev \
     curl \
     gnupg \
 && curl -sL https://deb.nodesource.com/setup_20.x | bash - \
 && apt-get install -y nodejs \
-&& docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip \
+&& docker-php-ext-configure intl \
+&& docker-php-ext-install pdo pdo_mysql mbstring exif pcntl bcmath gd zip intl \
 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
