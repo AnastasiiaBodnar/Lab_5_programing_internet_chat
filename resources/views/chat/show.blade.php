@@ -91,47 +91,47 @@
         const userName = "{{ Auth::user()->name }}";
         const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
-        const socket = io('http://localhost:3001');
+        console.log('Initializing chat:', { chatId, userId, userName });
 
-        socket.on('connect', () => {
-            console.log(' Connected to WebSocket');
+        const socket = io('http://localhost:3001', {
+            transports: ['websocket', 'polling']
+        });
 
+        socket.on('connect', function() {
+            console.log('Connected to WebSocket');
             socket.emit('authenticate', userId);
-
             socket.emit('join-chat', chatId);
         });
 
-        socket.on('new-message', (message) => {
-            console.log('📨 New message:', message);
+        socket.on('new-message', function(message) {
+            console.log('New message:', message);
             addMessageToUI(message);
             scrollToBottom();
 
-            // Автоматично позначити як доставлене
             if (message.user_id !== userId) {
                 socket.emit('message-delivered', { messageId: message.id });
             }
         });
 
-        socket.on('message-status-update', (data) => {
-            console.log('📊 Status update:', data);
+        socket.on('message-status-update', function(data) {
+            console.log('Status update:', data);
             updateMessageStatus(data.messageId, data.status);
         });
 
-        socket.on('user-typing', (data) => {
+        socket.on('user-typing', function(data) {
             if (data.userId !== userId) {
                 document.getElementById('typing-indicator').style.display = 'block';
                 document.getElementById('typing-user').textContent = data.userName;
             }
         });
 
-        // Перестав друкувати
-        socket.on('user-stop-typing', (data) => {
+        socket.on('user-stop-typing', function(data) {
             if (data.userId !== userId) {
                 document.getElementById('typing-indicator').style.display = 'none';
             }
         });
 
-        document.getElementById('message-form').addEventListener('submit', async (e) => {
+        document.getElementById('message-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const input = document.getElementById('message-input');
@@ -140,34 +140,33 @@
             if (!message) return;
 
             try {
-                const response = await fetch(`/chat/${chatId}/message`, {
+                const response = await fetch('/chat/' + chatId + '/message', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': csrfToken
                     },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({ message: message })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
                     input.value = '';
-                    socket.emit('stop-typing', { chatId });
+                    socket.emit('stop-typing', { chatId: chatId });
                 }
             } catch (error) {
-                console.error('Error sending message:', error);
-                alert('Failed to send message');
+                console.error('Error:', error);
             }
         });
 
         let typingTimeout;
-        document.getElementById('message-input').addEventListener('input', (e) => {
-            socket.emit('typing', { chatId, userName });
+        document.getElementById('message-input').addEventListener('input', function() {
+            socket.emit('typing', { chatId: chatId, userName: userName });
 
             clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
-                socket.emit('stop-typing', { chatId });
+            typingTimeout = setTimeout(function() {
+                socket.emit('stop-typing', { chatId: chatId });
             }, 1000);
         });
 
@@ -176,26 +175,31 @@
             const isMine = message.user_id === userId;
 
             const messageDiv = document.createElement('div');
-            messageDiv.className = `flex ${isMine ? 'justify-end' : 'justify-start'}`;
+            messageDiv.className = 'flex ' + (isMine ? 'justify-end' : 'justify-start');
 
-            messageDiv.innerHTML = `
-            <div class="max-w-xs lg:max-w-md">
-                ${!isMine ? `<p class="text-xs text-gray-500 mb-1">${message.user_name}</p>` : ''}
-                <div class="rounded-lg px-4 py-2 ${isMine ? 'message-sent' : 'message-received'}">
-                    <p class="break-words">${escapeHtml(message.message)}</p>
-                    <div class="flex items-center justify-end gap-2 mt-1">
-                        <p class="text-xs opacity-75">${formatTime(message.created_at)}</p>
-                        ${isMine ? `<span class="text-xs message-status" data-message-id="${message.id}">✓</span>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
+            let html = '<div class="max-w-xs lg:max-w-md">';
 
+            if (!isMine) {
+                html += '<p class="text-xs text-gray-500 mb-1">' + message.user_name + '</p>';
+            }
+
+            html += '<div class="rounded-lg px-4 py-2 ' + (isMine ? 'message-sent' : 'message-received') + '">';
+            html += '<p class="break-words">' + escapeHtml(message.message) + '</p>';
+            html += '<div class="flex items-center justify-end gap-2 mt-1">';
+            html += '<p class="text-xs opacity-75">' + formatTime(message.created_at) + '</p>';
+
+            if (isMine) {
+                html += '<span class="text-xs message-status" data-message-id="' + message.id + '">✓</span>';
+            }
+
+            html += '</div></div></div>';
+
+            messageDiv.innerHTML = html;
             container.appendChild(messageDiv);
         }
 
         function updateMessageStatus(messageId, status) {
-            const statusEl = document.querySelector(`[data-message-id="${messageId}"]`);
+            const statusEl = document.querySelector('[data-message-id="' + messageId + '"]');
             if (statusEl) {
                 if (status === 'read') {
                     statusEl.textContent = '✓✓';
@@ -213,7 +217,9 @@
 
         function formatTime(dateString) {
             const date = new Date(dateString);
-            return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return hours + ':' + minutes;
         }
 
         function escapeHtml(text) {
@@ -221,10 +227,6 @@
             div.textContent = text;
             return div.innerHTML;
         }
-
-        const messagesContainer = document.getElementById('messages-container');
-        messagesContainer.addEventListener('scroll', () => {
-        });
 
         scrollToBottom();
     </script>

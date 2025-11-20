@@ -18,7 +18,7 @@ const io = new Server(server, {
 });
 
 const redis = new Redis({
-    host: 'localhost',
+    host: '172.17.0.1',
     port: 6379,
     retryStrategy: (times) => {
         const delay = Math.min(times * 50, 2000);
