@@ -54,7 +54,6 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Chat::class, 'chat_participants')
             ->withPivot('joined_at')
-            ->withTimestamps()
             ->orderByDesc('updated_at');
     }
 
