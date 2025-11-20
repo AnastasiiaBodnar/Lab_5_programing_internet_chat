@@ -8,6 +8,7 @@ services:
       - ./:/var/www/html
     depends_on:
       - mysql
+      - redis
 
   nginx:
     image: nginx:alpine
@@ -34,5 +35,15 @@ services:
     volumes:
       - dbdata:/var/lib/mysql
 
+  redis:
+    image: redis:alpine
+    container_name: chat-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+
 volumes:
   dbdata:
+  redisdata:
