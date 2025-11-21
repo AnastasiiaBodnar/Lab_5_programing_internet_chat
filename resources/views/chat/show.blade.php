@@ -24,7 +24,9 @@
         <!-- Messages Container -->
         <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-3">
             @foreach($messages as $message)
-                <div class="flex {{ $message->user_id == Auth::id() ? 'justify-end' : 'justify-start' }}">
+                <div class="flex {{ $message->user_id == Auth::id() ? 'justify-end' : 'justify-start' }}"
+                     data-message-id="{{ $message->id }}"
+                     data-user-id="{{ $message->user_id }}">
                     <div class="max-w-xs lg:max-w-md">
                         @if($message->user_id != Auth::id())
                             <p class="text-xs text-gray-500 mb-1">{{ $message->user->name }}</p>
@@ -42,11 +44,11 @@
                                         $allDelivered = $message->statuses->every(fn($s) => in_array($s->status, ['read', 'delivered']));
                                     @endphp
                                         @if($allRead)
-                                            ✓✓
+                                            <span style="color: #3b82f6;">&#10003;&#10003;</span>
                                         @elseif($allDelivered)
-                                            ✓✓
+                                            &#10003;&#10003;
                                         @else
-                                            ✓
+                                            &#10003;
                                         @endif
                                 </span>
                                 @endif
@@ -104,17 +106,18 @@
         });
 
         socket.on('new-message', function(message) {
-            console.log('New message:', message);
+            console.log('New message received:', message);
             addMessageToUI(message);
             scrollToBottom();
 
             if (message.user_id !== userId) {
+                console.log('Emitting message-delivered for message:', message.id);
                 socket.emit('message-delivered', { messageId: message.id });
             }
         });
 
         socket.on('message-status-update', function(data) {
-            console.log('Status update:', data);
+            console.log('Status update received:', data);
             updateMessageStatus(data.messageId, data.status);
         });
 
@@ -154,9 +157,10 @@
                 if (data.success) {
                     input.value = '';
                     socket.emit('stop-typing', { chatId: chatId });
+                    console.log('Message sent successfully');
                 }
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error sending message:', error);
             }
         });
 
@@ -176,6 +180,8 @@
 
             const messageDiv = document.createElement('div');
             messageDiv.className = 'flex ' + (isMine ? 'justify-end' : 'justify-start');
+            messageDiv.setAttribute('data-message-id', message.id);
+            messageDiv.setAttribute('data-user-id', message.user_id);
 
             let html = '<div class="max-w-xs lg:max-w-md">';
 
@@ -189,24 +195,33 @@
             html += '<p class="text-xs opacity-75">' + formatTime(message.created_at) + '</p>';
 
             if (isMine) {
-                html += '<span class="text-xs message-status" data-message-id="' + message.id + '">✓</span>';
+                html += '<span class="text-xs message-status" data-message-id="' + message.id + '">&#10003;</span>';
             }
 
             html += '</div></div></div>';
 
             messageDiv.innerHTML = html;
             container.appendChild(messageDiv);
+
+            if (!isMine) {
+                observeMessage(messageDiv);
+            }
         }
 
         function updateMessageStatus(messageId, status) {
-            const statusEl = document.querySelector('[data-message-id="' + messageId + '"]');
+            const statusEl = document.querySelector('.message-status[data-message-id="' + messageId + '"]');
             if (statusEl) {
+                console.log('Updating message ' + messageId + ' status to ' + status);
+
                 if (status === 'read') {
-                    statusEl.textContent = '✓✓';
-                    statusEl.style.color = '#3b82f6';
+                    statusEl.innerHTML = '<span style="color: #3b82f6;">&#10003;&#10003;</span>';
                 } else if (status === 'delivered') {
-                    statusEl.textContent = '✓✓';
+                    statusEl.innerHTML = '&#10003;&#10003;';
+                } else {
+                    statusEl.innerHTML = '&#10003;';
                 }
+            } else {
+                console.warn('Status element not found for message ' + messageId);
             }
         }
 
@@ -227,6 +242,36 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const messageEl = entry.target;
+                    const messageId = messageEl.dataset.messageId;
+                    const messageUserId = messageEl.dataset.userId;
+
+                    if (messageUserId !== userId.toString()) {
+                        console.log('Message ' + messageId + ' is visible, marking as read');
+                        socket.emit('message-read', { messageId: parseInt(messageId) });
+                        observer.unobserve(messageEl);
+                    }
+                }
+            });
+        }, { threshold: 0.5 });
+
+        function observeMessage(messageEl) {
+            const messageUserId = messageEl.dataset.userId;
+            if (messageUserId !== userId.toString()) {
+                observer.observe(messageEl);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('[data-message-id]').forEach(el => {
+                observeMessage(el);
+            });
+            scrollToBottom();
+        });
 
         scrollToBottom();
     </script>

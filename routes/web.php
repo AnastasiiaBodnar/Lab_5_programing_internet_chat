@@ -8,7 +8,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// ✅ ДОДАНО: Login маршрут
 Route::get('/login', function () {
     return redirect('/login/1'); // Автологін для розробки
 })->name('login');

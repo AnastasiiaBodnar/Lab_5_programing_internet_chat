@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
 const cors = require('cors');
+const fetch = require('node-fetch');
 
 const app = express();
 app.use(cors());
@@ -51,19 +52,25 @@ subscriber.on('error', (err) => {
 });
 
 subscriber.on('connect', () => {
-    console.log('Redis Subscriber CONNECTED to localhost:6379');
+    console.log(' Redis Subscriber CONNECTED to localhost:6379');
 });
 
 subscriber.on('ready', () => {
     console.log(' Redis Subscriber READY');
 
-    subscriber.subscribe('laravel-database-chat-message', 'laravel-database-message-status', (err, count) => {
-        if (err) {
-            console.error(' Failed to subscribe:', err.message);
-        } else {
-            console.log(` Subscribed to ${count} channel(s)`);
+    subscriber.subscribe(
+        'laravel-database-chat-message',
+        'laravel-database-message-status',
+        'message-delivered',
+        'message-read',
+        (err, count) => {
+            if (err) {
+                console.error(' Failed to subscribe:', err.message);
+            } else {
+                console.log(` Subscribed to ${count} channel(s)`);
+            }
         }
-    });
+    );
 });
 
 subscriber.on('message', (channel, message) => {
@@ -73,15 +80,23 @@ subscriber.on('message', (channel, message) => {
         const data = JSON.parse(message);
 
         switch(channel) {
-            case 'laravel-database-chat-message':
+            case 'laravel-database-chat-message':  // Змініть
+            case 'chat-message':
                 handleChatMessage(data);
                 break;
-            case 'laravel-database-message-status':
+            case 'laravel-database-message-status':  // Змініть
+            case 'message-status':
                 handleMessageStatus(data);
+                break;
+            case 'message-delivered':
+                handleMessageDelivered(data);
+                break;
+            case 'message-read':
+                handleMessageRead(data);
                 break;
         }
     } catch (e) {
-        console.error('❌ Error parsing message:', e.message);
+        console.error(' Error parsing message:', e.message);
     }
 });
 
@@ -108,6 +123,15 @@ function handleMessageStatus(data) {
     });
 }
 
+function handleMessageDelivered(data) {
+    const { messageId, userId, deliveredAt } = data;
+    console.log(` Message ${messageId} delivered to user ${userId}`);
+}
+
+function handleMessageRead(data) {
+    const { messageId, userId, readAt } = data;
+    console.log(` Message ${messageId} read by user ${userId}`);
+}
 io.on('connection', (socket) => {
     console.log(` Socket connected: ${socket.id}`);
 
@@ -127,7 +151,7 @@ io.on('connection', (socket) => {
 
     socket.on('leave-chat', (chatId) => {
         socket.leave(`chat-${chatId}`);
-        console.log(`⬅ User ${socket.userId} left chat-${chatId}`);
+        console.log(` User ${socket.userId} left chat-${chatId}`);
     });
 
     socket.on('typing', ({ chatId, userName }) => {
@@ -146,6 +170,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('message-delivered', ({ messageId }) => {
+        console.log(` Client reported message ${messageId} as delivered`);
         redis.publish('message-delivered', JSON.stringify({
             messageId,
             userId: socket.userId,
@@ -154,6 +179,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('message-read', ({ messageId }) => {
+        console.log(`Client reported message ${messageId} as read`);
         redis.publish('message-read', JSON.stringify({
             messageId,
             userId: socket.userId,

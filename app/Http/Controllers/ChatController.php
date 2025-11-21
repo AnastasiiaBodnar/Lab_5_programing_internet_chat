@@ -199,17 +199,17 @@ class ChatController extends Controller
         foreach ($statuses as $status) {
             $status->markAsRead();
 
+            // Публікуємо статус в Redis
             $redis = app('redis')->connection()->client();
             $redis->publish('message-status', json_encode([
                 'messageId' => $status->message_id,
-                'userId' => $status->message->user_id,
-                'status' => 'read'
+                'userId' => $status->message->user_id, // Автор повідомлення
+                'status' => 'read'  // ДОДАЙТЕ ЦЕ ПОЛЕ
             ]));
 
-            Log::info('Published status for message: ' . $status->message_id);
+            Log::info('Published read status for message: ' . $status->message_id);
         }
     }
-
     public function users()
     {
         $currentUserId = Auth::id();

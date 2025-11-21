@@ -10,6 +10,19 @@ services:
       - mysql
       - redis
 
+  redis-subscriber:
+    build:
+      context: .
+      dockerfile: .docker/php/Dockerfile
+    container_name: chat-redis-subscriber
+    command: php artisan redis:subscribe
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - redis
+      - mysql
+
+
   nginx:
     image: nginx:alpine
     container_name: chat-nginx
