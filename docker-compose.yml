@@ -44,6 +44,17 @@ services:
       - redisdata:/data
     command: redis-server --appendonly yes
 
+  socket:
+    build:
+      context: ./socket-server
+    container_name: chat-socket
+    ports:
+      - "3001:3001"
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
+
 volumes:
   dbdata:
   redisdata:
